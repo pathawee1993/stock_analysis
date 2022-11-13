@@ -40,9 +40,9 @@ def getElementByXPATH (driver, xpath):
     return driver.find_element(By.XPATH,xpath)
     # return element
 
-def getStockData (name, wkn, link):
+def getStockData (driver, name, wkn, link):
     stockData = []
-    driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), chrome_options=chrome_options)
+    # driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), chrome_options=chrome_options)
     driver.get(link)
     time.sleep(5)
 
@@ -97,7 +97,7 @@ def getStockData (name, wkn, link):
         })
 
     # print(stockData)
-    driver.close()
+    # driver.close()
     return stockData
 
 def getAllStock ():
@@ -107,18 +107,22 @@ def getAllStock ():
     driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), chrome_options=chrome_options)
     driver.get('https://www.boerse-frankfurt.de/aktien/suche')
 
+    driver2 = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), chrome_options=chrome_options)
+
     i = 0
     while True:
         table = getElementByXPATH(driver, '/html/body/app-root/app-wrapper/div/div[2]/app-equity-search/app-equity-search-result-table/div/div[2]/table/tbody')
         rows = table.find_elements(By.TAG_NAME, "tr") # get all of the rows in the table
         for row in rows:
+            start_time = time.time()
             col1 = row.find_elements(By.TAG_NAME, "td")[0] #note: index start from 0, 1 is col 2  
             name = col1.text
             a = col1.find_elements(By.TAG_NAME, "a")[0]
             url = a.get_attribute("href")
             wkn = row.find_elements(By.TAG_NAME, "td")[1].text #note: index start from 0, 1 is col 2
-            stockData = getStockData(name, wkn, url)
+            stockData = getStockData(driver2, name, wkn, url)
             stocks = stocks+stockData
+            print("--- %s seconds ---" % (time.time() - start_time))
 
 
         nextBtn=driver.find_element(By.XPATH,"/html/body/app-root/app-wrapper/div/div[2]/app-equity-search/app-equity-search-result-table/div/app-page-bar[1]/div/div[1]/button[9]")
