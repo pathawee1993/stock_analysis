@@ -7,6 +7,8 @@ import time
 from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 import csv
+import psycopg2
+from database_config import config
 
 chrome_options = webdriver.ChromeOptions()
 prefs = {"profile.managed_default_content_settings.images": 2}
@@ -29,6 +31,12 @@ def getTextFromXPATH(driver, xpath):
         text = getElementByXPATH(driver, xpath).text
     return text
 
+def getNumFromXPATH(driver, xpath):
+    text = None
+    while text == None:
+        text = getElementByXPATH(driver, xpath).text
+    return getNum(text)
+
 def getElementByXPATH (driver, xpath):
     # print(xpath)
     element = None
@@ -40,8 +48,55 @@ def getElementByXPATH (driver, xpath):
     return driver.find_element(By.XPATH,xpath)
     # return element
 
-def getStockData (driver, name, wkn, link):
-    stockData = []
+def getNum (strNum):
+    try:
+        strNum = strNum.replace(".","")
+        strNum = strNum.replace(",",".")
+        return float(strNum)
+    except:
+        return 'null'
+
+
+
+def toDatabase (aktienDaten):
+    """ Connect to the PostgreSQL database server """
+    conn = None
+    try:
+        # read connection parameters
+        params = config()
+
+        # connect to the PostgreSQL server
+        print('Connecting to the PostgreSQL database...')
+        conn = psycopg2.connect(**params)
+
+        values = ""
+        for r in aktienDaten:
+            # print(r)
+            values = values + f"('{r['name']}','{r['wkn']}','{r['land']}','{r['branche']}',{r['year']},'{r['waehrung']}',{r['kurse']}, {r['umsatz']},{r['ebit']}, {r['ebt']}, {r['ergebnis_je_aktie']}, {r['dividend_je_aktie']}, {r['umsatz_je_aktie']}, {r['buchwert_je_aktie']}, {r['cashflow_je_aktie']}, {r['bilanzsumme_je_aktie']}, {r['kgv']}, {r['kbv']}, {r['kuv']}, {r['kcv']}, {r['dividendenrendite']}, {r['gewinnrendite']}, {r['eigenkapitalrendite']}, {r['umsatzrendite']}, {r['gesamtkapitalrendite']}, {r['roi']}, {r['arbeitsintensitaet']}, {r['eigenkapitalquote']}, {r['fremdkapitalquote']}, {r['verschuldungsgrad']}, {r['anzahl_mitarbeiter']}, {r['umsatz_je_mitarbeiter']}, {r['bruttoergebnis_je_mitarbeiter']}, {r['gewinn_je_mitarbeiter']}),\n"
+        # create a cursor
+        cur = conn.cursor()
+        
+	    # execute a statement
+        cmd = f"""INSERT INTO public.aktien_daten
+            ("name", wkn, land, branche, "year", waehrung, kurse, umsatz, ebit, ebt, ergebnis_je_aktie, dividend_je_aktie, umsatz_je_aktie, buchwert_je_aktie, cashflow_je_aktie, bilanzsumme_je_aktie, kgv, kbv, kuv, kcv, dividendenrendite, gewinnrendite, eigenkapitalrendite, umsatzrendite, gesamtkapitalrendite, roi, arbeitsintensitaet, eigenkapitalquote, fremdkapitalquote, verschuldungsgrad, anzahl_mitarbeiter, umsatz_je_mitarbeiter, bruttoergebnis_je_mitarbeiter, gewinn_je_mitarbeiter)
+            VALUES{values[:-2]};"""
+        # print(cmd)
+        cur.execute(cmd)
+
+        # display the PostgreSQL database server version
+        conn.commit()
+       
+	    # close the communication with the PostgreSQL
+        cur.close()
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(error)
+    finally:
+        if conn is not None:
+            conn.close()
+            print('Database connection closed.')
+
+def updateAktienDaten (driver, name, wkn, link):
+    aktienDaten = []
     # driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), chrome_options=chrome_options)
     driver.get(link)
     time.sleep(5)
@@ -57,48 +112,54 @@ def getStockData (driver, name, wkn, link):
         _len = len(head.find_elements(By.TAG_NAME, "th"))
     print(name, wkn, land, branche,_len)
     baseXpath = "/html/body/app-root/app-wrapper/div/div[2]/app-equity/div[2]/div[3]/app-widget-historical-key-data/div/div/div/div/table/tbody"
-    for i in range(2, _len):
-        stockData.append({
-            "name": name,
-            "wkn": wkn,
-            "land": land,
-            "branche": branche,
-            "year": getTextFromXPATH(driver, "/html/body/app-root/app-wrapper/div/div[2]/app-equity/div[2]/div[3]/app-widget-historical-key-data/div/div/div/div/table/thead/tr/th["+str(i)+"]"),
-            "waehrung": getTextFromXPATH(driver,baseXpath+"/tr[1]/td["+str(i)+"]"),
-            "start_kurse": 0,
-            "end_kurse": 0,
-            "umsatz": getTextFromXPATH(driver,baseXpath+"/tr[2]/td["+str(i)+"]"),
-            "ebit": getTextFromXPATH(driver,baseXpath+"/tr[4]/td["+str(i)+"]"),
-            "ebt": getTextFromXPATH(driver,baseXpath+"/tr[5]/td["+str(i)+"]"),
-            "ergebnis_je_aktie": getTextFromXPATH(driver,baseXpath+"/tr[22]/td["+str(i)+"]"),
-            "dividend_je_aktie": getTextFromXPATH(driver,baseXpath+"/tr[23]/td["+str(i)+"]"),
-            "umsatz_je_aktie": getTextFromXPATH(driver,baseXpath+"/tr[26]/td["+str(i)+"]"),
-            "buchwert_je_aktie": getTextFromXPATH(driver,baseXpath+"/tr[27]/td["+str(i)+"]"),
-            "cashflow_je_aktie": getTextFromXPATH(driver,baseXpath+"/tr[28]/td["+str(i)+"]"),
-            "bilanzsumme_je_Aktie": getTextFromXPATH(driver,baseXpath+"/tr[29]/td["+str(i)+"]"),
-            "kgv": getTextFromXPATH(driver,baseXpath+"/tr[30]/td["+str(i)+"]"),
-            "kbv": getTextFromXPATH(driver,baseXpath+"/tr[31]/td["+str(i)+"]"),
-            "kuv": getTextFromXPATH(driver,baseXpath+"/tr[32]/td["+str(i)+"]"),
-            "kcv": getTextFromXPATH(driver,baseXpath+"/tr[33]/td["+str(i)+"]"),
-            "dividendenrendite": getTextFromXPATH(driver,baseXpath+"/tr[34]/td["+str(i)+"]"),
-            "gewinnrendite": getTextFromXPATH(driver,baseXpath+"/tr[35]/td["+str(i)+"]"),
-            "eigenkapitalrendite": getTextFromXPATH(driver,baseXpath+"/tr[36]/td["+str(i)+"]"),
-            "umsatzrendite": getTextFromXPATH(driver,baseXpath+"/tr[37]/td["+str(i)+"]"),
-            "gesamtkapitalrendite": getTextFromXPATH(driver,baseXpath+"/tr[38]/td["+str(i)+"]"),
-            "roi": getTextFromXPATH(driver,baseXpath+"/tr[39]/td["+str(i)+"]"),
-            "arbeitsintensität": getTextFromXPATH(driver,baseXpath+"/tr[40]/td["+str(i)+"]"),
-            "eigenkapitalquote": getTextFromXPATH(driver,baseXpath+"/tr[41]/td["+str(i)+"]"),
-            "fremdkapitalquote": getTextFromXPATH(driver,baseXpath+"/tr[42]/td["+str(i)+"]"),
-            "verschuldungsgrad": getTextFromXPATH(driver,baseXpath+"/tr[43]/td["+str(i)+"]"),
-            "anzahl_mitarbeiter": getTextFromXPATH(driver,baseXpath+"/tr[45]/td["+str(i)+"]"),
-            "umsatz_je_mitarbeiter": getTextFromXPATH(driver,baseXpath+"/tr[47]/td["+str(i)+"]"),
-            "bruttoergebnis_je_mitarbeiter": getTextFromXPATH(driver,baseXpath+"/tr[49]/td["+str(i)+"]"),
-            "gewinn_je_mitarbeiter": getTextFromXPATH(driver,baseXpath+"/tr[50]/td["+str(i)+"]"),
-        })
+    for i in range(2, _len+1):
+        try:
+            ergebnis_je_aktie = getNumFromXPATH(driver,baseXpath+"/tr[22]/td["+str(i)+"]")
+            kgv = getNumFromXPATH(driver,baseXpath+"/tr[30]/td["+str(i)+"]")
+            kurse = round(kgv*ergebnis_je_aktie, 2)
+            if (kurse > 0):
+                aktienDaten.append({
+                    "name": name,
+                    "wkn": wkn,
+                    "land": land,
+                    "branche": branche,
+                    "year": getNumFromXPATH(driver, "/html/body/app-root/app-wrapper/div/div[2]/app-equity/div[2]/div[3]/app-widget-historical-key-data/div/div/div/div/table/thead/tr/th["+str(i)+"]"),
+                    "waehrung": getTextFromXPATH(driver,baseXpath+"/tr[1]/td["+str(i)+"]"),
+                    "kurse": kurse,
+                    "umsatz": getNumFromXPATH(driver,baseXpath+"/tr[2]/td["+str(i)+"]"),
+                    "ebit": getNumFromXPATH(driver,baseXpath+"/tr[4]/td["+str(i)+"]"),
+                    "ebt": getNumFromXPATH(driver,baseXpath+"/tr[5]/td["+str(i)+"]"),
+                    "ergebnis_je_aktie": ergebnis_je_aktie,
+                    "dividend_je_aktie": getNumFromXPATH(driver,baseXpath+"/tr[23]/td["+str(i)+"]"),
+                    "umsatz_je_aktie": getNumFromXPATH(driver,baseXpath+"/tr[26]/td["+str(i)+"]"),
+                    "buchwert_je_aktie": getNumFromXPATH(driver,baseXpath+"/tr[27]/td["+str(i)+"]"),
+                    "cashflow_je_aktie": getNumFromXPATH(driver,baseXpath+"/tr[28]/td["+str(i)+"]"),
+                    "bilanzsumme_je_aktie": getNumFromXPATH(driver,baseXpath+"/tr[29]/td["+str(i)+"]"),
+                    "kgv": kgv,
+                    "kbv": getNumFromXPATH(driver,baseXpath+"/tr[31]/td["+str(i)+"]"),
+                    "kuv": getNumFromXPATH(driver,baseXpath+"/tr[32]/td["+str(i)+"]"),
+                    "kcv": getNumFromXPATH(driver,baseXpath+"/tr[33]/td["+str(i)+"]"),
+                    "dividendenrendite": getNumFromXPATH(driver,baseXpath+"/tr[34]/td["+str(i)+"]"),
+                    "gewinnrendite": getNumFromXPATH(driver,baseXpath+"/tr[35]/td["+str(i)+"]"),
+                    "eigenkapitalrendite": getNumFromXPATH(driver,baseXpath+"/tr[36]/td["+str(i)+"]"),
+                    "umsatzrendite": getNumFromXPATH(driver,baseXpath+"/tr[37]/td["+str(i)+"]"),
+                    "gesamtkapitalrendite": getNumFromXPATH(driver,baseXpath+"/tr[38]/td["+str(i)+"]"),
+                    "roi": getNumFromXPATH(driver,baseXpath+"/tr[39]/td["+str(i)+"]"),
+                    "arbeitsintensitaet": getNumFromXPATH(driver,baseXpath+"/tr[40]/td["+str(i)+"]"),
+                    "eigenkapitalquote": getNumFromXPATH(driver,baseXpath+"/tr[41]/td["+str(i)+"]"),
+                    "fremdkapitalquote": getNumFromXPATH(driver,baseXpath+"/tr[42]/td["+str(i)+"]"),
+                    "verschuldungsgrad": getNumFromXPATH(driver,baseXpath+"/tr[43]/td["+str(i)+"]"),
+                    "anzahl_mitarbeiter": getNumFromXPATH(driver,baseXpath+"/tr[45]/td["+str(i)+"]"),
+                    "umsatz_je_mitarbeiter": getNumFromXPATH(driver,baseXpath+"/tr[47]/td["+str(i)+"]"),
+                    "bruttoergebnis_je_mitarbeiter": getNumFromXPATH(driver,baseXpath+"/tr[49]/td["+str(i)+"]"),
+                    "gewinn_je_mitarbeiter": getNumFromXPATH(driver,baseXpath+"/tr[50]/td["+str(i)+"]"),
+                })
+        except:
+            print("An exception occurred")
 
-    # print(stockData)
+    print(aktienDaten)
     # driver.close()
-    return stockData
+    toDatabase(aktienDaten)
 
 def getAllStock ():
 
@@ -120,8 +181,7 @@ def getAllStock ():
             a = col1.find_elements(By.TAG_NAME, "a")[0]
             url = a.get_attribute("href")
             wkn = row.find_elements(By.TAG_NAME, "td")[1].text #note: index start from 0, 1 is col 2
-            stockData = getStockData(driver2, name, wkn, url)
-            stocks = stocks+stockData
+            updateAktienDaten(driver2, name, wkn, url)
             print("--- %s seconds ---" % (time.time() - start_time))
 
 
@@ -131,11 +191,10 @@ def getAllStock ():
         
         nextBtn.click()
         i = i +1
-    writeCsv('stock.csv', stocks)
+    # writeCsv('stock.csv', stocks)
 
 
 def main ():
-    stock = getAllStock()
-    print(stock)
+    getAllStock()
 
 main()
