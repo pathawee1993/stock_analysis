@@ -118,19 +118,34 @@ def updateAktienDaten (driver, name, wkn, link):
     baseXpath = "/html/body/app-root/app-wrapper/div/div[2]/app-equity/div[2]/div[3]/app-widget-historical-key-data/div/div/div/div/table/tbody"
     for i in range(2, _len+1):
         try:
+            umsatz = getNumFromXPATH(driver,baseXpath+"/tr[2]/td["+str(i)+"]")
             umsatz_je_aktie = getNumFromXPATH(driver,baseXpath+"/tr[26]/td["+str(i)+"]")
+            if (umsatz_je_aktie == 0):
+                umsatz_je_aktie = umsatz/getNumFromXPATH(driver,baseXpath+"/tr[18]/td["+str(i)+"]")
             ergebnis_je_aktie = getNumFromXPATH(driver,baseXpath+"/tr[22]/td["+str(i)+"]")
             dividend_je_aktie = getNumFromXPATH(driver,baseXpath+"/tr[23]/td["+str(i)+"]")
+            dividend_je_aktie = dividend_je_aktie if (dividend_je_aktie != 'null') else 0 # revise value
             buchwert_je_aktie = getNumFromXPATH(driver,baseXpath+"/tr[27]/td["+str(i)+"]")
             cashflow_je_aktie = getNumFromXPATH(driver,baseXpath+"/tr[28]/td["+str(i)+"]")
             kuv = getNumFromXPATH(driver,baseXpath+"/tr[31]/td["+str(i)+"]")
-            kurse = round(kuv*umsatz_je_aktie, 2)
+            kbv = getNumFromXPATH(driver,baseXpath+"/tr[31]/td["+str(i)+"]")
+            kcv = getNumFromXPATH(driver,baseXpath+"/tr[31]/td["+str(i)+"]")
+            kurse = 0
+            if (kuv != 'null' and umsatz_je_aktie != 'null' and umsatz_je_aktie != 0):
+                kurse = round(kuv*umsatz_je_aktie, 2)
+            elif (kbv != 'null' and buchwert_je_aktie != 'null' and buchwert_je_aktie != 0):
+                kurse = round(kbv*buchwert_je_aktie, 2)
+            elif (kcv != 'null' and cashflow_je_aktie != 'null' and cashflow_je_aktie != 0):
+                kurse = round(kcv*cashflow_je_aktie, 2)
+            else:
+                continue # if cannot get kurse -> go to next year
             kgv = round(kurse/ergebnis_je_aktie, 2)
             kbv = round(kurse/buchwert_je_aktie, 2)
             kcv = round(kurse/cashflow_je_aktie, 2)
             ergebnis_n_steuer = getNumFromXPATH(driver,baseXpath+"/tr[7]/td["+str(i)+"]")
             eigenkapital = getNumFromXPATH(driver,baseXpath+"/tr[16]/td["+str(i)+"]")
             gesamtkapital = getNumFromXPATH(driver,baseXpath+"/tr[17]/td["+str(i)+"]")
+            eigenkapital = eigenkapital if (eigenkapital != 'null') else gesamtkapital - getNumFromXPATH(driver,baseXpath+"/tr[15]/td["+str(i)+"]") # revise value
 
             if (kurse > 0):
                 aktienDaten.append({
@@ -141,7 +156,7 @@ def updateAktienDaten (driver, name, wkn, link):
                     "year": getNumFromXPATH(driver, "/html/body/app-root/app-wrapper/div/div[2]/app-equity/div[2]/div[3]/app-widget-historical-key-data/div/div/div/div/table/thead/tr/th["+str(i)+"]"),
                     "waehrung": getTextFromXPATH(driver,baseXpath+"/tr[1]/td["+str(i)+"]"),
                     "kurse": kurse,
-                    "umsatz": getNumFromXPATH(driver,baseXpath+"/tr[2]/td["+str(i)+"]"),
+                    "umsatz": umsatz,
                     "ebit": getNumFromXPATH(driver,baseXpath+"/tr[4]/td["+str(i)+"]"),
                     "ebt": getNumFromXPATH(driver,baseXpath+"/tr[5]/td["+str(i)+"]"),
                     "ergebnis_n_steuer": ergebnis_n_steuer,
@@ -172,7 +187,7 @@ def updateAktienDaten (driver, name, wkn, link):
 def getAllStock ():
 
     driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), chrome_options=chrome_options)
-    driver.get('https://www.boerse-frankfurt.de/aktien/suche?MARKET_CAPITALISATION_MIN=1000000&ORDER_BY=TURNOVER&ORDER_DIRECTION=DESC')
+    driver.get('https://www.boerse-frankfurt.de/aktien/suche?MARKET_CAPITALISATION_MIN=10000000&ORDER_BY=TURNOVER&ORDER_DIRECTION=DESC')
     time.sleep(10)
 
     driver2 = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), chrome_options=chrome_options)
@@ -200,7 +215,7 @@ def getAllStock ():
             break
         
         nextBtn.click()
-        time.sleep(5)
+        time.sleep(20)
         i = i +1
     # writeCsv('stock.csv', stocks)
 
