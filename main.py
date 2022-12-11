@@ -34,12 +34,6 @@ df2=df.iloc[:,3:]
 df2= df2.astype(float)
 df3=df.iloc[:,:3]
 df = pd.concat([df3, df2], axis=1, join="inner")
-## 4.3. delete minus umsatz, and clean business with bad performance 
-df = df[df.umsatz >= 1]
-df = df[df.kgv > 0]
-df = df[df.kgv < df.kgv.mean()*3]
-df = df[df.kuv > 0]
-df = df[df.kcv > 0]
 print(df.head())
 print(df.describe())
 
@@ -58,6 +52,12 @@ profit.append(None)
 df['profit'] = profit
 df = df[df.profit.notnull()]
 df = df[df.profit <= 10]
+## 5.2. delete minus umsatz, and clean business with bad performance 
+df = df[df.umsatz >= 1]
+df = df[df.kgv > 0]
+df = df[df.kgv < df.kgv.mean()*3]
+df = df[df.kuv > 0]
+df = df[df.kcv > 0]
 df=df.drop(['kurse','year'],axis=1)
 print(df.head())
 print(df.describe())
