@@ -8,7 +8,7 @@ from selenium.webdriver.chrome.service import Service as ChromeService
 from webdriver_manager.chrome import ChromeDriverManager
 import csv
 import psycopg2
-from database_config import config
+from config.database_config import config
 import sys
 
 chrome_options = webdriver.ChromeOptions()
@@ -103,17 +103,22 @@ def updateAktienDaten (driver, name, wkn, link):
     aktienDaten = []
     # driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), chrome_options=chrome_options)
     driver.get(link)
-    time.sleep(10)
+    time.sleep(5)
 
     land = getTextFromXPATH(driver, "/html/body/app-root/app-wrapper/div/div[2]/app-equity/div[2]/div[5]/div[1]/app-widget-equity-master-data/div/div/table/tbody/tr[5]/td[2]")
     branche = getTextFromXPATH(driver, "/html/body/app-root/app-wrapper/div/div[2]/app-equity/div[2]/div[5]/div[1]/app-widget-equity-master-data/div/div/table/tbody/tr[6]/td[2]")
     
     driver.get(link+'/kennzahlen')
+    time.sleep(5)
 
     _len = 1
+    cout = 0
     while _len == 1:
         head = getElementByXPATH(driver, "/html/body/app-root/app-wrapper/div/div[2]/app-equity/div[2]/div[3]/app-widget-historical-key-data/div/div/div/div/table/thead")
         _len = len(head.find_elements(By.TAG_NAME, "th"))
+        cout = cout + 1
+        if (cout == 3):
+            return
     print(name, wkn, land, branche,_len)
     baseXpath = "/html/body/app-root/app-wrapper/div/div[2]/app-equity/div[2]/div[3]/app-widget-historical-key-data/div/div/div/div/table/tbody"
     for i in range(2, _len+1):
@@ -196,26 +201,34 @@ def getAllStock ():
     i = 1
     while True:
         print("page >",i)
+        table = getElementByXPATH(driver, '/html/body/app-root/app-wrapper/div/div[2]/app-equity-search/app-equity-search-result-table/div/div[2]/table/tbody')
+        rows = table.find_elements(By.TAG_NAME, "tr") # get all of the rows in the table
         if (i >= page):
-            table = getElementByXPATH(driver, '/html/body/app-root/app-wrapper/div/div[2]/app-equity-search/app-equity-search-result-table/div/div[2]/table/tbody')
-            rows = table.find_elements(By.TAG_NAME, "tr") # get all of the rows in the table
             for row in rows:
-                start_time = time.time()
-                col1 = row.find_elements(By.TAG_NAME, "td")[0] #note: index start from 0, 1 is col 2  
-                name = col1.text
-                a = col1.find_elements(By.TAG_NAME, "a")[0]
-                url = a.get_attribute("href")
-                wkn = row.find_elements(By.TAG_NAME, "td")[1].text #note: index start from 0, 1 is col 2
-                updateAktienDaten(driver2, name, wkn, url)
-                print("--- %s seconds ---" % (time.time() - start_time))
+                try:
+                    start_time = time.time()
+                    col1 = row.find_elements(By.TAG_NAME, "td")[0] #note: index start from 0, 1 is col 2  
+                    name = col1.text
+                    a = col1.find_elements(By.TAG_NAME, "a")[0]
+                    url = a.get_attribute("href")
+                    wkn = row.find_elements(By.TAG_NAME, "td")[1].text #note: index start from 0, 1 is col 2
+                    updateAktienDaten(driver2, name, wkn, url)
+                    print("--- %s seconds ---" % (time.time() - start_time))
+                except Exception as e: print(e)
 
-
-        nextBtn=driver.find_element(By.XPATH,"/html/body/app-root/app-wrapper/div/div[2]/app-equity-search/app-equity-search-result-table/div/app-page-bar[1]/div/div[1]/button[9]")
-        if (nextBtn is None):
-            break
-        
-        nextBtn.click()
-        time.sleep(20)
+        newtable = getElementByXPATH(driver, '/html/body/app-root/app-wrapper/div/div[2]/app-equity-search/app-equity-search-result-table/div/div[2]/table/tbody')
+        newrows = newtable.find_elements(By.TAG_NAME, "tr") # get all of the rows in the table
+        while (rows[0] == newrows[0]):
+            tabs=getElementByXPATH(driver,"/html/body/app-root/app-wrapper/div/div[2]/app-equity-search/app-equity-search-result-table/div/app-page-bar[1]/div/div[1]")
+            btns = tabs.find_elements(By.TAG_NAME, "button")
+            nextBtn = btns[len(btns)-2]
+            if (nextBtn is None):
+                break
+            
+            nextBtn.click()
+            time.sleep(20)
+            newtable = getElementByXPATH(driver, '/html/body/app-root/app-wrapper/div/div[2]/app-equity-search/app-equity-search-result-table/div/div[2]/table/tbody')
+            newrows = table.find_elements(By.TAG_NAME, "tr") # get all of the rows in the table
         i = i +1
     # writeCsv('stock.csv', stocks)
 
